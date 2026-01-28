@@ -7,7 +7,16 @@ import models
 from models import User
 from schemas import UserCreate, ClientResponse, UserLogin, BikeCreate, ReservationData, UserChangePassword
 from services import UserService, BikeService, ReservationService
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 models.Base.metadata.create_all(bind=engine)
 def get_db():
     db = SessionLocal()
@@ -87,3 +96,34 @@ def create_reservation(
 ):
     service = ReservationService(db)
     return service.create_reservation(reservation_data)
+
+# Listowanie
+@app.get("/bikes")
+def get_bikes(db: Session = Depends(get_db)):
+    service = BikeService(db)
+    return service.list_bikes()
+
+@app.get("/list-reservations/{user_email}")
+def get_reservations_by_user(user_email: str, db: Session = Depends(get_db)):
+    service = ReservationService(db)
+    return service.list_reservations_by_user(user_email)
+
+@app.get('/list-reservation')
+def list_reservations(db: Session = Depends(get_db)):
+    service = ReservationService(db)
+    return service.list_reservations()
+
+@app.delete("/remove-reservation/{reservation_id}")
+def remove_reservation(reservation_id: int, db: Session = Depends(get_db)):
+    service = ReservationService(db)
+    return service.remove_reservation(reservation_id)
+
+@app.put("/cancel-reservaiton/{reservation_id}")
+def update_bike(reservation_id: int, db: Session = Depends(get_db)):
+    service = ReservationService(db)
+    return service.cancel_reservation(reservation_id)
+
+@app.delete("/delete-bike/{bike_id}")
+def delete_bike(bike_id: int, user_email: str, db: Session = Depends(get_db)):
+    service = BikeService(db)
+    return service.delete_bike(bike_id, user_email)

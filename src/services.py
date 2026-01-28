@@ -86,7 +86,10 @@ class UserService:
             raise HTTPException(status_code=404, detail="Podany email nie istnieje")
         if user.password != credentials.password:
             raise HTTPException(status_code=401, detail="Nieprawidłowe hasło")
-        return "Zalogowany"
+        return {
+            "email": user.email,
+            "type": user.type
+        }
     
     def change_password(self, credentials: UserChangePassword):
         user = self.db.query(User).filter(User.email == credentials.email).first()
@@ -106,6 +109,10 @@ class BikeService:
     def __init__(self, db: Session):
         self.db = db
 
+    def list_bikes(self):
+        bikes = self.db.query(Bike).all()
+        return bikes
+        
     def create_bike(self, bike_data: BikeCreate):
         user = self.db.query(User).filter(User.email == bike_data.user_email).first()
         if user.type == "client":
@@ -186,7 +193,40 @@ class ReservationService:
         except Exception as e:
             self.db.rollback()
             raise HTTPException(status_code=500, detail=f"Błąd bazy danych: {str(e)}")
+
+    def list_reservations_by_user(self, user_email: str):
+        user = self.db.query(User).filter(User.email == user_email).first()
         
+        if not user:
+            raise HTTPException(status_code=404, detail="Podany email nie istnieje")
+        
+        reservations = self.db.query(Reservation).filter(Reservation.client_id == user.id).all()
+        bikes = self.db.query(Bike).all()
+        reservation_return_list = []
+        for reservation in reservations:
+            for bike in bikes:
+                if reservation.bike_id == bike.id:
+                    return_model = {
+                        "id": reservation.id,
+                        "bike_model": bike.model,
+                        "price": reservation.price,
+                        "start_date": reservation.start_date,
+                        "end_date": reservation.end_date
+                    }
+                    reservation_return_list.append(return_model)
+        return reservation_return_list
+    def list_reservations(self):
+        reservations = self.db.query(Reservation).all()
+        return reservations
+    def remove_reservation(self, id: int):
+        reservation = self.db.query(Reservation)\
+               .filter(Reservation.id == id).first()
+        bike = self.db.query(Bike).filter(Bike.id == reservation.bike_id).first()
+
+        bike.is_reserved=False
+        self.db.query(Reservation).filter(Reservation.id == id).delete(synchronize_session=False)
+        self.db.commit()
+
     @staticmethod
     def _calculate_cost(bike_price_per_day: float, date_from: date, date_to: date):
         return bike_price_per_day * max((date_to - date_from).days, 1)
